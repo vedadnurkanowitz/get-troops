@@ -6,10 +6,28 @@ import {
   FileText,
   ArrowRight,
   User,
+  X,
 } from "lucide-react";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+} from "firebase/firestore";
+import ApplicationForm from "./ApplicationForm";
 
-const CandidateDashboard = ({ user, setPage, isDemo }) => {
+const CandidateDashboard = ({
+  user,
+  firebaseUser,
+  setPage,
+  isDemo,
+  db,
+  appId,
+}) => {
   const [myApplications, setMyApplications] = useState([]);
+  const [showApplyForm, setShowApplyForm] = useState(false);
+  const [selectedApp, setSelectedApp] = useState(null);
 
   useEffect(() => {
     if (isDemo && user) {
@@ -21,8 +39,32 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
           (app.email && app.email.toLowerCase() === user.email.toLowerCase())
       );
       setMyApplications(myApps);
+    } else if (firebaseUser && db && appId) {
+      // Fetch from Firestore with real-time updates
+      const q = query(
+        collection(db, "artifacts", appId, "public", "data", "applications"),
+        where("userId", "==", firebaseUser.uid),
+        orderBy("createdAt", "desc")
+      );
+
+      const unsubscribe = onSnapshot(
+        q,
+        (querySnapshot) => {
+          const myApps = querySnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+          setMyApplications(myApps);
+        },
+        (error) => {
+          console.error("Error fetching applications:", error);
+        }
+      );
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
     }
-  }, [user, isDemo]);
+  }, [user, firebaseUser, isDemo, db, appId, showApplyForm]);
 
   const getStatusStep = (status) => {
     switch (status) {
@@ -42,6 +84,21 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
     { id: 2, label: "U obradi", icon: Clock },
     { id: 3, label: "Završeno", icon: CheckCircle },
   ];
+
+  if (showApplyForm) {
+    return (
+      <ApplicationForm
+        user={firebaseUser}
+        currentUser={user}
+        db={db}
+        appId={appId}
+        setPage={setPage}
+        isDemo={isDemo}
+        onSuccess={() => setShowApplyForm(false)}
+        onCancel={() => setShowApplyForm(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 pt-24 pb-12 px-4 relative overflow-hidden">
@@ -91,7 +148,7 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
               prijavu kako biste započeli svoju karijeru sa nama.
             </p>
             <button
-              onClick={() => setPage("apply")}
+              onClick={() => setShowApplyForm(true)}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 px-8 py-4 rounded-xl font-bold hover:shadow-lg hover:shadow-amber-500/20 hover:scale-105 transition-all"
             >
               Apliciraj Sada <ArrowRight size={18} />
@@ -135,7 +192,10 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
                       </p>
                     </div>
                     <div className="self-start sm:self-center">
-                      <button className="text-xs font-medium text-slate-400 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1.5 bg-slate-800/50">
+                      <button
+                        onClick={() => setSelectedApp(app)}
+                        className="text-xs font-medium text-slate-400 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 rounded-lg px-3 py-1.5 bg-slate-800/50"
+                      >
                         Detalji prijave
                       </button>
                     </div>
@@ -213,7 +273,7 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
 
             <div className="text-center mt-12">
               <button
-                onClick={() => setPage("apply")}
+                onClick={() => setShowApplyForm(true)}
                 className="text-slate-400 hover:text-amber-500 font-medium text-sm flex items-center justify-center gap-2 mx-auto transition-colors"
               >
                 <div className="h-8 w-8 rounded-full border border-current flex items-center justify-center border-dashed">
@@ -225,6 +285,156 @@ const CandidateDashboard = ({ user, setPage, isDemo }) => {
           </div>
         )}
       </div>
+
+      {/* Application Details Modal */}
+      {selectedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-slate-800 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden relative">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-slate-700 bg-slate-800/50">
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  Detalji Prijave
+                </h3>
+                <p className="text-slate-400 text-sm mt-1">
+                  ID: #{selectedApp.id.slice(-6)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedApp(null)}
+                className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Status Banner */}
+              <div
+                className={`p-4 rounded-xl border flex items-center gap-4 ${
+                  selectedApp.status === "hired"
+                    ? "bg-green-500/10 border-green-500/20 text-green-400"
+                    : selectedApp.status === "reviewed"
+                    ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                    : "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                }`}
+              >
+                <div
+                  className={`p-2 rounded-full ${
+                    selectedApp.status === "hired"
+                      ? "bg-green-500/20"
+                      : selectedApp.status === "reviewed"
+                      ? "bg-blue-500/20"
+                      : "bg-amber-500/20"
+                  }`}
+                >
+                  {selectedApp.status === "hired" ? (
+                    <CheckCircle size={24} />
+                  ) : selectedApp.status === "reviewed" ? (
+                    <Clock size={24} />
+                  ) : (
+                    <Send size={24} />
+                  )}
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg capitalize">
+                    {selectedApp.status === "new"
+                      ? "Prijavljeno"
+                      : selectedApp.status === "reviewed"
+                      ? "U obradi"
+                      : "Zavrošeno / Angažovano"}
+                  </h4>
+                  <p className="text-sm opacity-80">
+                    {selectedApp.status === "new"
+                      ? "Vaša prijava je uspješno zaprimljena i čeka pregled."
+                      : selectedApp.status === "reviewed"
+                      ? "Vaša prijava je pregledana i trenutno je u procesu evaluacije."
+                      : "Čestitamo! Angažovani ste za ovu poziciju."}
+                  </p>
+                </div>
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-slate-500 text-sm mb-1">Pozicija</p>
+                  <p className="text-white font-semibold text-lg">
+                    {selectedApp.position}
+                  </p>
+                </div>
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-slate-500 text-sm mb-1">Datum Prijave</p>
+                  <p className="text-white font-semibold text-lg">
+                    {selectedApp.createdAt?.seconds
+                      ? new Date(
+                          selectedApp.createdAt.seconds * 1000
+                        ).toLocaleDateString("bs-BA", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : "N/A"}
+                  </p>
+                </div>
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-slate-500 text-sm mb-1">Iskustvo</p>
+                  <p className="text-white font-semibold">
+                    {selectedApp.experience || "Nije navedeno"}
+                  </p>
+                </div>
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-slate-500 text-sm mb-1">Kontakt Telefon</p>
+                  <p className="text-white font-semibold">
+                    {selectedApp.phone || "Nije navedeno"}
+                  </p>
+                </div>
+              </div>
+
+              {/* About Section */}
+              {selectedApp.about && (
+                <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-slate-500 text-sm mb-2">
+                    Biografija / O sebi
+                  </p>
+                  <p className="text-slate-300 leading-relaxed">
+                    {selectedApp.about}
+                  </p>
+                </div>
+              )}
+
+              {/* CV File */}
+              <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 flex items-center justify-between">
+                <div>
+                  <p className="text-slate-500 text-sm mb-1">Priloženi CV</p>
+                  <p className="text-white font-medium flex items-center gap-2">
+                    <FileText size={16} className="text-amber-500" />
+                    {selectedApp.cvName || "Moj_CV.pdf"}
+                  </p>
+                </div>
+                <button
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors border border-slate-600"
+                  onClick={() =>
+                    alert("Preuzimanje fajla nije dostupno u demo verziji.")
+                  }
+                >
+                  Preuzmi
+                </button>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-700 bg-slate-800/50 flex justify-end">
+              <button
+                onClick={() => setSelectedApp(null)}
+                className="px-6 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl transition-colors"
+              >
+                Zatvori
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

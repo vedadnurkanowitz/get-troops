@@ -17,7 +17,7 @@ import ApplicationForm from "./components/ApplicationForm";
 import AdminDashboard from "./components/AdminDashboard";
 import UserAuth from "./components/UserAuth";
 import CandidateDashboard from "./components/CandidateDashboard";
-import JobBoard from "./components/JobBoard";
+
 import About from "./components/About";
 import Contact from "./components/Contact";
 
@@ -97,17 +97,6 @@ export default function App() {
           </>
         )}
 
-        {page === "apply" && (
-          <ApplicationForm
-            user={user}
-            currentUser={currentUser}
-            db={db}
-            appId={appId}
-            setPage={setPage}
-            isDemo={isDemo}
-          />
-        )}
-
         {/* Login Component Removed */}
 
         {page === "admin" &&
@@ -137,11 +126,14 @@ export default function App() {
         {page === "dashboard" && currentUser && (
           <CandidateDashboard
             user={currentUser}
+            firebaseUser={user}
             setPage={setPage}
             isDemo={isDemo}
+            db={db}
+            appId={appId}
           />
         )}
-        {page === "jobs" && <JobBoard setPage={setPage} />}
+
         {page === "about" && <About />}
         {page === "contact" && <Contact />}
       </div>

@@ -66,22 +66,7 @@ const Footer = ({ setPage }) => (
                 O Nama
               </button>
             </li>
-            <li>
-              <button
-                onClick={() => setPage("jobs")}
-                className="hover:text-amber-500 transition-colors block text-left w-full"
-              >
-                Ponuda Poslova
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => setPage("apply")}
-                className="hover:text-amber-500 transition-colors block text-left w-full"
-              >
-                Za Poslodavce
-              </button>
-            </li>
+
             <li>
               <button
                 onClick={() => setPage("contact")}

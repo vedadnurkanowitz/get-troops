@@ -9,7 +9,6 @@ import {
   Home,
   User,
   LogOut,
-  Book,
   Info,
   Phone,
 } from "lucide-react";
@@ -104,22 +103,6 @@ const Navbar = ({ setPage, currentPage, currentUser, setCurrentUser }) => {
               </button>
 
               <button
-                onClick={() => setPage("jobs")}
-                className={`text-sm font-medium transition-all duration-300 relative group ${
-                  currentPage === "jobs"
-                    ? "text-amber-500"
-                    : "text-slate-300 hover:text-white"
-                }`}
-              >
-                Poslovi
-                <span
-                  className={`absolute -bottom-1 left-0 h-0.5 bg-amber-500 transition-all duration-300 ${
-                    currentPage === "jobs" ? "w-full" : "w-0 group-hover:w-full"
-                  }`}
-                ></span>
-              </button>
-
-              <button
                 onClick={() => setPage("contact")}
                 className={`text-sm font-medium transition-all duration-300 relative group ${
                   currentPage === "contact"
@@ -138,16 +121,6 @@ const Navbar = ({ setPage, currentPage, currentUser, setCurrentUser }) => {
               </button>
 
               {/* Call to Action Button */}
-              <button
-                onClick={() => setPage("apply")}
-                className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all shadow-lg hover:shadow-amber-500/20 transform hover:-translate-y-0.5 flex items-center gap-2 ${
-                  currentPage === "apply"
-                    ? "bg-amber-500 text-slate-900 shadow-amber-500/30"
-                    : "bg-slate-800 text-amber-500 hover:bg-amber-500 hover:text-slate-900 border border-amber-500/20"
-                }`}
-              >
-                <Briefcase size={16} /> Prijava
-              </button>
 
               {currentUser ? (
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-700/50">
@@ -233,33 +206,6 @@ const Navbar = ({ setPage, currentPage, currentUser, setCurrentUser }) => {
             }`}
           >
             <Home size={20} /> Početna
-          </button>
-          <button
-            onClick={() => {
-              setPage("apply");
-              setIsOpen(false);
-            }}
-            className={`flex items-center gap-3 w-full px-4 py-4 rounded-xl text-lg font-medium transition-all ${
-              currentPage === "apply"
-                ? "bg-amber-500/10 text-amber-500"
-                : "text-gray-300 hover:bg-slate-800"
-            }`}
-          >
-            <Briefcase size={20} /> Prijava za posao
-          </button>
-
-          <button
-            onClick={() => {
-              setPage("jobs");
-              setIsOpen(false);
-            }}
-            className={`flex items-center gap-3 w-full px-4 py-4 rounded-xl text-lg font-medium transition-all ${
-              currentPage === "jobs"
-                ? "bg-amber-500/10 text-amber-500"
-                : "text-gray-300 hover:bg-slate-800"
-            }`}
-          >
-            <Book size={20} /> Poslovi
           </button>
 
           <button

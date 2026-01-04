@@ -21,6 +21,7 @@ import {
   Menu,
   Clock,
   FileText,
+  Building,
 } from "lucide-react";
 import {
   collection,
@@ -58,6 +59,20 @@ const AdminDashboard = ({
   const [newAdminCode, setNewAdminCode] = useState("");
   const [existingAdmins, setExistingAdmins] = useState([]);
 
+  // Companies State
+  const [companies, setCompanies] = useState([]);
+  const [newCompany, setNewCompany] = useState({
+    name: "",
+    address: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    positions: "",
+    workerCount: "",
+    salaryRange: "",
+    notes: "",
+  });
+
   // Stats State
   const [stats, setStats] = useState({ total: 0, year: 0, month: 0, week: 0 });
   const [adminStats, setAdminStats] = useState({});
@@ -66,6 +81,11 @@ const AdminDashboard = ({
 
   // Search State
   const [searchTerm, setSearchTerm] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+
+  // Company UI State
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
 
   // General States
   const [toast, setToast] = useState(null); // { message: '', type: 'success' | 'error' }
@@ -300,13 +320,40 @@ const AdminDashboard = ({
             ...doc.data(),
           }));
           setExistingAdmins(data);
+          setExistingAdmins(data);
         });
       }
+    }
+
+    // Fetch Companies
+    let unsubscribeCompanies = () => {};
+    if (isDemo) {
+      const storedCompanies = JSON.parse(
+        localStorage.getItem("demo_companies") || "[]"
+      );
+      setCompanies(storedCompanies);
+    } else {
+      const companiesQ = collection(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "companies"
+      );
+      unsubscribeCompanies = onSnapshot(companiesQ, (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setCompanies(data);
+      });
     }
 
     return () => {
       // unsubscribeApps(); // Handled in if/else block above
       unsubscribeTeam();
+      unsubscribeCompanies();
     };
   }, [user, adminUser]);
 
@@ -529,6 +576,162 @@ const AdminDashboard = ({
     }
   };
 
+  const handleSaveCompany = async (e) => {
+    e.preventDefault();
+    try {
+      const companyData = {
+        name: newCompany.name,
+        address: newCompany.address,
+        contactPerson: newCompany.contactPerson,
+        email: newCompany.email,
+        phone: newCompany.phone,
+        positions: newCompany.positions,
+        workerCount: newCompany.workerCount,
+        salaryRange: newCompany.salaryRange,
+        notes: newCompany.notes,
+        website: newCompany.website || "",
+        status: newCompany.status || "Active",
+      };
+
+      if (editingCompany) {
+        // UPDATE EXISTING
+        if (isDemo) {
+          setCompanies((prev) => {
+            const updated = prev.map((c) =>
+              c.id === editingCompany.id ? { ...c, ...companyData } : c
+            );
+            localStorage.setItem("demo_companies", JSON.stringify(updated));
+            return updated;
+          });
+          setToast({
+            message: "Podaci o firmi ažurirani (Demo)",
+            type: "success",
+          });
+        } else {
+          await updateDoc(
+            doc(
+              db,
+              "artifacts",
+              appId,
+              "public",
+              "data",
+              "companies",
+              editingCompany.id
+            ),
+            companyData
+          );
+          setToast({ message: "Podaci o firmi ažurirani", type: "success" });
+        }
+      } else {
+        // CREATE NEW
+        if (isDemo) {
+          const newCo = {
+            id: `comp-${Date.now()}`,
+            ...companyData,
+            createdAt: { seconds: Date.now() / 1000 },
+            createdBy: adminUser.name,
+          };
+          setCompanies((prev) => {
+            const updated = [newCo, ...prev];
+            localStorage.setItem("demo_companies", JSON.stringify(updated));
+            return updated;
+          });
+          setToast({
+            message: "Kompanija uspješno dodana (Demo)",
+            type: "success",
+          });
+        } else {
+          await addDoc(
+            collection(db, "artifacts", appId, "public", "data", "companies"),
+            {
+              ...companyData,
+              createdAt: serverTimestamp(),
+              createdBy: adminUser.name,
+            }
+          );
+          setToast({ message: "Kompanija uspješno dodana", type: "success" });
+        }
+      }
+
+      // Reset and Close
+      setNewCompany({
+        name: "",
+        address: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        positions: "",
+        workerCount: "",
+        salaryRange: "",
+        notes: "",
+        website: "",
+        status: "Active",
+      });
+      setEditingCompany(null);
+      setIsCompanyModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      setToast({ message: "Greška pri snimanju podataka", type: "error" });
+    }
+  };
+
+  const openEditCompany = (company) => {
+    setEditingCompany(company);
+    setNewCompany({
+      name: company.name || "",
+      address: company.address || "",
+      contactPerson: company.contactPerson || "",
+      email: company.email || "",
+      phone: company.phone || "",
+      positions: company.positions || "",
+      workerCount: company.workerCount || "",
+      salaryRange: company.salaryRange || "",
+      notes: company.notes || "",
+      website: company.website || "",
+      status: company.status || "Active",
+    });
+    setIsCompanyModalOpen(true);
+  };
+
+  const openNewCompanyInitial = () => {
+    setEditingCompany(null);
+    setNewCompany({
+      name: "",
+      address: "",
+      contactPerson: "",
+      email: "",
+      phone: "",
+      positions: "",
+      workerCount: "",
+      salaryRange: "",
+      notes: "",
+      website: "",
+      status: "Active",
+    });
+    setIsCompanyModalOpen(true);
+  };
+
+  const handleDeleteCompany = async (id) => {
+    if (!window.confirm("Sigurno želite obrisati ovu kompaniju?")) return;
+    try {
+      if (isDemo) {
+        setCompanies((prev) => {
+          const updated = prev.filter((c) => c.id !== id);
+          localStorage.setItem("demo_companies", JSON.stringify(updated));
+          return updated;
+        });
+        setToast({ message: "Kompanija obrisana (Demo)", type: "success" });
+      } else {
+        await deleteDoc(
+          doc(db, "artifacts", appId, "public", "data", "companies", id)
+        );
+        setToast({ message: "Kompanija obrisana", type: "success" });
+      }
+    } catch (error) {
+      setToast({ message: "Greška pri brisanju", type: "error" });
+    }
+  };
+
   const demoteUser = (user) => {
     confirmDeleteAdmin(user.id);
   };
@@ -678,7 +881,10 @@ const AdminDashboard = ({
   // UI Components
   const SidebarItem = ({ id, icon: Icon, label }) => (
     <button
-      onClick={() => setActiveTab(id)}
+      onClick={() => {
+        setActiveTab(id);
+        if (window.innerWidth < 768) setSidebarOpen(false);
+      }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
         activeTab === id
           ? "bg-amber-500 text-slate-900 font-bold shadow-lg shadow-amber-500/20"
@@ -686,7 +892,7 @@ const AdminDashboard = ({
       }`}
     >
       <Icon size={20} />
-      {sidebarOpen && <span>{label}</span>}
+      {(sidebarOpen || window.innerWidth < 768) && <span>{label}</span>}
     </button>
   );
 
@@ -698,11 +904,23 @@ const AdminDashboard = ({
         <div className="absolute bottom-[20%] left-[10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-3xl"></div>
       </div>
 
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? "w-64" : "w-20"
-        } bg-slate-900/90 backdrop-blur-xl border-r border-white/5 transition-all duration-300 flex flex-col fixed h-full z-30`}
+        className={`fixed top-0 left-0 h-full z-30 bg-slate-900/90 backdrop-blur-xl border-r border-white/5 transition-all duration-300 flex flex-col
+          ${
+            sidebarOpen
+              ? "translate-x-0 w-64"
+              : "-translate-x-full w-64 md:translate-x-0 md:w-20"
+          }
+        `}
       >
         <div className="h-20 flex items-center justify-between px-6 border-b border-white/5">
           {sidebarOpen ? (
@@ -710,17 +928,27 @@ const AdminDashboard = ({
               GET <span className="text-amber-500">TROOPS</span>
             </span>
           ) : (
-            <ShieldAlert className="text-amber-500 mx-auto" />
+            <div className="hidden md:block">
+              <ShieldAlert className="text-amber-500 mx-auto" />
+            </div>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-slate-500 hover:text-white transition-colors"
+            className="text-slate-500 hover:text-white transition-colors md:block hidden"
           >
             <Menu size={20} />
           </button>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden text-slate-500 hover:text-white"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <div className="flex-1 py-8 px-3 space-y-2">
+        <div className="flex-1 py-8 px-3 space-y-2 overflow-y-auto">
           <SidebarItem id="applications" icon={Briefcase} label="Prijave" />
           <SidebarItem
             id="dashboard"
@@ -731,6 +959,7 @@ const AdminDashboard = ({
             <>
               <SidebarItem id="team" icon={Users} label="Tim" />
               <SidebarItem id="users" icon={User} label="Korisnici" />
+              <SidebarItem id="companies" icon={Building} label="Firme" />
             </>
           )}
         </div>
@@ -741,25 +970,36 @@ const AdminDashboard = ({
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
           >
             <LogOut size={20} />
-            {sidebarOpen && <span>Odjava</span>}
+            {(sidebarOpen || window.innerWidth < 768) && <span>Odjava</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main
-        className={`flex-1 transition-all duration-300 ${
-          sidebarOpen ? "ml-64" : "ml-20"
-        } relative z-10`}
+        className={`flex-1 transition-all duration-300 relative z-10 
+          ${sidebarOpen ? "md:ml-64" : "md:ml-20"} 
+          ml-0 w-full
+        `}
       >
         {/* Top Header */}
-        <header className="bg-slate-900/80 backdrop-blur-md border-b border-white/5 h-20 flex items-center justify-between px-8 sticky top-0 z-20">
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            {activeTab === "applications" && "Upravljanje Prijavama"}
-            {activeTab === "dashboard" && "Pregled Statistike"}
-            {activeTab === "team" && "Upravljanje Timom"}
-            {activeTab === "users" && "Registrovani Korisnici"}
-          </h2>
+        <header className="bg-slate-900/80 backdrop-blur-md border-b border-white/5 h-20 flex items-center justify-between px-4 md:px-8 sticky top-0 z-20">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden text-slate-400 hover:text-white"
+            >
+              <Menu size={24} />
+            </button>
+            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+              {activeTab === "applications" && "Upravljanje Prijavama"}
+              {activeTab === "dashboard" && "Pregled Statistike"}
+              {activeTab === "team" && "Upravljanje Timom"}
+              {activeTab === "team" && "Upravljanje Timom"}
+              {activeTab === "users" && "Registrovani Korisnici"}
+              {activeTab === "companies" && "Upravljanje Firmama"}
+            </h2>
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-white">{adminUser.name}</p>
@@ -1300,6 +1540,7 @@ const AdminDashboard = ({
                       <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-6 justify-end">
                         {app.status === "new" && (
                           <button
+                            onClick={() => updateStatus(app.id, "reviewed")}
                             className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-all"
                             title="Označi kao pregledano"
                           >
@@ -1337,6 +1578,157 @@ const AdminDashboard = ({
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {activeTab === "companies" && (
+            <div className="animate-fadeIn space-y-6">
+              {/* Header Actions */}
+              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="relative w-full md:w-96">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    size={20}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Pretraži firme..."
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+                  />
+                </div>
+                <button
+                  onClick={openNewCompanyInitial}
+                  className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-6 py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20"
+                >
+                  <Building size={20} />
+                  Nova Firma
+                </button>
+              </div>
+
+              {/* Companies List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {companies
+                  .filter(
+                    (c) =>
+                      c.name &&
+                      c.name.toLowerCase().includes(companySearch.toLowerCase())
+                  )
+                  .map((company) => (
+                    <div
+                      key={company.id}
+                      className="group bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden hover:border-amber-500/30 transition-all flex flex-col"
+                    >
+                      {/* Card Header with Pattern */}
+                      <div className="h-24 bg-gradient-to-r from-slate-800 to-slate-900 relative p-4 flex justify-between items-start">
+                        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:16px_16px]" />
+                        <div
+                          className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider z-10 ${
+                            company.status === "Inactive"
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                              : "bg-green-500/20 text-green-400 border border-green-500/30"
+                          }`}
+                        >
+                          {company.status === "Inactive"
+                            ? "Neaktivno"
+                            : "Aktivno"}
+                        </div>
+                        <div className="flex gap-2 z-10">
+                          <button
+                            onClick={() => openEditCompany(company)}
+                            className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+                            title="Uredi"
+                          >
+                            <TrendingUp size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCompany(company.id)}
+                            className="p-1.5 bg-white/10 hover:bg-red-500/20 rounded-lg text-white hover:text-red-400 transition-colors"
+                            title="Obriši"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-6 pt-0 flex-1 flex flex-col">
+                        {/* Company Icon/Logo Placeholder */}
+                        <div className="-mt-10 mb-4 inline-flex">
+                          <div className="h-20 w-20 rounded-2xl bg-slate-800 border-4 border-slate-900 shadow-xl flex items-center justify-center text-3xl font-bold text-amber-500">
+                            {company.name ? company.name[0] : "?"}
+                          </div>
+                        </div>
+
+                        <h4 className="text-xl font-bold text-white mb-1">
+                          {company.name}
+                        </h4>
+                        <p className="text-sm text-slate-400 flex items-center gap-2 mb-4">
+                          {company.address}
+                        </p>
+
+                        <div className="space-y-3 mb-6 bg-white/5 rounded-xl p-4 border border-white/5">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-slate-500">
+                              Otvorene pozicije
+                            </span>
+                            <span
+                              className="text-white font-medium text-right max-w-[150px] truncate"
+                              title={company.positions}
+                            >
+                              {company.positions || "-"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-slate-500">
+                              Potrebno radnika
+                            </span>
+                            <span className="text-amber-500 font-bold">
+                              {company.workerCount || "0"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-slate-500">Plaća</span>
+                            <span className="text-white font-medium">
+                              {company.salaryRange || "-"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-auto space-y-3">
+                          <div className="flex items-center gap-3 text-sm text-slate-400">
+                            <User size={16} className="text-slate-500" />
+                            <span className="truncate">
+                              {company.contactPerson}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-slate-400">
+                            <Phone size={16} className="text-slate-500" />
+                            <span className="truncate">{company.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-slate-400">
+                            <Mail size={16} className="text-slate-500" />
+                            <span className="truncate">{company.email}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {companies.length === 0 && (
+                <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/5">
+                  <div className="h-20 w-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600">
+                    <Building size={32} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white">
+                    Nema dodanih kompanija
+                  </h3>
+                  <p className="text-slate-500 mt-2">
+                    Kliknite na dugme "Nova Firma" da dodate partnere.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1560,6 +1952,208 @@ const AdminDashboard = ({
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Company Modal (Add/Edit) */}
+      {isCompanyModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-white/10 rounded-2xl p-8 max-w-2xl w-full shadow-2xl animate-scaleIn h-auto max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <Building className="text-amber-500" />
+                {editingCompany ? "Uredi Firmu" : "Dodaj Novu Firmu"}
+              </h3>
+              <button
+                onClick={() => setIsCompanyModalOpen(false)}
+                className="text-slate-500 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSaveCompany}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <div className="md:col-span-2">
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Naziv Firme
+                </label>
+                <input
+                  required
+                  value={newCompany.name}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, name: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="npr. Hotel Grand"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Kontakt Osoba
+                </label>
+                <input
+                  required
+                  value={newCompany.contactPerson}
+                  onChange={(e) =>
+                    setNewCompany({
+                      ...newCompany,
+                      contactPerson: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="Ime i Prezime"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Telefon
+                </label>
+                <input
+                  value={newCompany.phone}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, phone: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="npr. 061 123 456"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newCompany.email}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, email: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="email@kompanija.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Adresa
+                </label>
+                <input
+                  value={newCompany.address}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, address: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="Adresa i Grad"
+                />
+              </div>
+
+              <div className="md:col-span-2 border-t border-white/5 pt-4 mt-2">
+                <p className="text-amber-500 text-sm font-bold mb-3">
+                  Informacije o Poslu
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Tražene Pozicije
+                </label>
+                <input
+                  value={newCompany.positions}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, positions: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="npr. Konobar, Kuhar, Sobarica"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Broj Radnika
+                </label>
+                <input
+                  type="number"
+                  value={newCompany.workerCount}
+                  onChange={(e) =>
+                    setNewCompany({
+                      ...newCompany,
+                      workerCount: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="npr. 10"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Raspon Plaće
+                </label>
+                <input
+                  value={newCompany.salaryRange}
+                  onChange={(e) =>
+                    setNewCompany({
+                      ...newCompany,
+                      salaryRange: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder="npr. 800€ - 1200€"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Status
+                </label>
+                <select
+                  value={newCompany.status || "Active"}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, status: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none"
+                >
+                  <option value="Active">Aktivno</option>
+                  <option value="Inactive">Neaktivno</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs uppercase font-bold text-slate-500 mb-1">
+                  Napomene
+                </label>
+                <textarea
+                  rows={3}
+                  value={newCompany.notes}
+                  onChange={(e) =>
+                    setNewCompany({ ...newCompany, notes: e.target.value })
+                  }
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none resize-none"
+                  placeholder="Dodatne informacije..."
+                />
+              </div>
+
+              <div className="md:col-span-2 pt-4 flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCompanyModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl text-slate-400 font-bold hover:bg-white/5 transition-colors"
+                >
+                  Odustani
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20"
+                >
+                  {editingCompany ? "Sačuvaj Izmjene" : "Kreiraj Firmu"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

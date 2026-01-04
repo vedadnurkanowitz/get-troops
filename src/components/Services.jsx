@@ -67,7 +67,10 @@ const Services = () => {
   ];
 
   return (
-    <div id="services" className="py-24 bg-slate-50 relative overflow-hidden">
+    <div
+      id="services"
+      className="py-16 md:py-24 bg-slate-50 relative overflow-hidden"
+    >
       {/* Decorative Dots */}
       <div className="absolute top-0 left-0 p-4 opacity-30">
         <div className="grid grid-cols-5 gap-2">

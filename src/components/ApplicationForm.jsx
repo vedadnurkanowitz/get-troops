@@ -13,7 +13,16 @@ import {
 } from "lucide-react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-const ApplicationForm = ({ user, currentUser, db, appId, setPage, isDemo }) => {
+const ApplicationForm = ({
+  user,
+  currentUser,
+  db,
+  appId,
+  setPage,
+  isDemo,
+  onSuccess,
+  onCancel,
+}) => {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -157,7 +166,8 @@ const ApplicationForm = ({ user, currentUser, db, appId, setPage, isDemo }) => {
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setTimeout(() => {
-        setPage("home");
+        if (onSuccess) onSuccess();
+        else setPage("home");
       }, 4000);
     } catch (error) {
       console.error("Error submitting:", error);
@@ -185,10 +195,11 @@ const ApplicationForm = ({ user, currentUser, db, appId, setPage, isDemo }) => {
           </p>
           <div className="pt-6">
             <button
-              onClick={() => setPage("home")}
+              onClick={() => (onSuccess ? onSuccess() : setPage("dashboard"))}
               className="text-amber-600 hover:text-amber-700 font-bold hover:underline"
             >
-              Povratak na početnu &rarr;
+              {onSuccess ? "Povratak na Dashboard" : "Povratak na početnu"}{" "}
+              &rarr;
             </button>
           </div>
         </div>
